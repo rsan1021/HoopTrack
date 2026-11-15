@@ -1,0 +1,26 @@
+# Dependencies and generated files
+node_modules/
+frontend/dist/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+
+# Local settings and secrets
+.env
+.env.*
+!.env.example
+
+# Track the supplied baseline database, not other local databases or SQLite journals.
+data/*.db
+!data/hoops.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+
+# OS and editor files
+.DS_Store
+.vscode/
+.idea/
