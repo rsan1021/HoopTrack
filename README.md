@@ -1,6 +1,6 @@
 # HoopTrack
 
-HoopTrack is a basketball stat tracker with a React/Vite frontend, a FastAPI backend and a SQLite database. Choose or create a player and game, tap individual stat events, undo the latest event, and view a player/game boxscore or career totals. Manage players and games, including archiving games. The UI selects one player at a time; the database supports many players and games. See [architecture](docs/ARCHITECTURE.md) and [operations](docs/OPERATIONS.md) for handoff details and limitations.
+HoopTrack is a basketball stat tracker with a React/Vite frontend, a FastAPI backend and a SQLite database. Choose or create a player and game, tap individual stat events, undo recent entries, and view a player/game boxscore or career totals. Manage players and games, including archiving games. The UI selects one player at a time; the database supports many players and games. See [architecture](docs/ARCHITECTURE.md) and [operations](docs/OPERATIONS.md) for handoff details and limitations.
 
 ## Quick start: Docker Compose
 
@@ -46,18 +46,34 @@ Open <http://localhost:5173>. The explicit `SQLITE_PATH` avoids the backend defa
 ## Typical workflow
 
 1. Create/select a player and an active game in Tracker.
-2. Tap stat buttons to record individual events. Undo removes the latest saved entry for the selected game, not specifically the selected player.
+2. Tap stat buttons to record individual events. Recent Entries shows up to 20 entries for all players in the selected game, newest first; confirm Undo on a specific saved entry to remove it by ID, or cancel a queued retry. Undo Last Entry targets the last visible game entry, not necessarily the selected player's.
 3. Select a player and game in Boxscore, or a player in Career. Use Manage to edit, archive/unarchive, or delete records. Deletion of a player or game with stat entries is blocked.
 
-Offline support is partial: stat submissions that fail with a network error can be queued in browser localStorage and retried, but reference data is fetched from the API and is not persisted for a fresh offline startup. Undo does not remove a queued entry and can delete a different server entry; duplicate submission is possible after an ambiguous failure. See the [offline limitations](docs/ARCHITECTURE.md#offline-and-pwa) before relying on it.
+Offline support is partial: stat submissions that fail with a network error can be queued in browser localStorage and retried, but reference data is fetched from the API and is not persisted for a fresh offline startup. Undoing a queued entry cancels its local retry, with a warning that an ambiguous failure may already have reached the server; check the game after reconnecting. Undo is blocked while an entry is being saved or synced, and duplicate submission remains possible after an ambiguous failure. See the [offline limitations](docs/ARCHITECTURE.md#offline-and-pwa) before relying on it.
 
 ## Database and handoff
 
-The supplied `data/hoops.db` is the operational SQLite file, not a disposable seed. Git has been initialized and the database is staged for the initial commit; `.gitignore` explicitly permits this file while ignoring other local databases and SQLite journals. Review its contents and privacy implications and take a consistent backup before committing. Its provenance has not been verified. Committing a database is not a backup strategy and can expose player data to everyone with repository access; coordinate access and retention with the owner.
+The supplied `data/hoops.db` is the operational SQLite file, not a disposable seed. The database is tracked in Git; `.gitignore` explicitly permits this file while ignoring other local databases and SQLite journals. Review its contents and privacy implications and take a consistent backup before committing. Its provenance has not been verified. Committing a database is not a backup strategy and can expose player data to everyone with repository access; coordinate access and retention with the owner.
 
 ## Validation and known gaps
 
-The frontend build and a backend `/health` smoke test using a temporary database passed; Compose configuration validation also passed. Docker daemon access was unavailable, so container builds, startup and end-to-end verification were not performed. The supplied database passed a read-only SQLite integrity check at review time; its contents and suitability for sharing were not audited. The frontend lockfile is included and the Dockerfile uses `npm ci`; there are no test files or test/lint scripts in the supplied tree. There is no observed authentication, authorization, TLS termination, automated backup, or formal migration/versioning framework. See the linked documents for the API, operational checks, recovery and unresolved questions.
+The frontend build and a backend `/health` smoke test using a temporary database passed; Compose configuration validation also passed. Docker daemon access was unavailable, so container builds, startup and end-to-end verification were not performed. The supplied database passed a read-only SQLite integrity check at review time; its contents and suitability for sharing were not audited. The frontend lockfile is included and the Dockerfile uses `npm ci`. Automated frontend queue and backend API regression tests are available; no lint script is provided. There is no observed authentication, authorization, TLS termination, automated backup, or formal migration/versioning framework. See the linked documents for the API, operational checks, recovery and unresolved questions.
+
+## Tests
+
+Run each block separately from the repository root for the frontend queue tests and backend API tests (use a virtual environment for Python dependencies):
+
+```sh
+cd frontend && npm test
+```
+
+```sh
+cd backend
+pip install -r requirements-dev.txt
+python -m unittest discover -s tests -v
+```
+
+The backend tests use temporary databases. These checks do not replace browser and end-to-end testing.
 
 ## Code map
 

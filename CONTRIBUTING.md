@@ -7,4 +7,16 @@
 5. Never commit credentials, `.env` files, database journals, or generated dependencies. The supplied `data/hoops.db` is intentionally tracked; review any changes to it before committing and avoid committing incidental runtime changes.
 6. Back up the database and test migrations on a copy before deploying database changes.
 
-There is no established automated test suite in the supplied project; add tests when changing behavior, and record manual coverage until one is established.
+Run each block separately from the repository root for the frontend queue tests and backend API regression tests (use a Python virtual environment for backend dependencies):
+
+```sh
+cd frontend && npm test
+```
+
+```sh
+cd backend
+pip install -r requirements-dev.txt
+python -m unittest discover -s tests -v
+```
+
+Backend tests use temporary databases. Add tests when changing behavior and document manual browser/end-to-end coverage, including undo and offline sync limitations where relevant.

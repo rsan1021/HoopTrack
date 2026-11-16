@@ -33,13 +33,27 @@ curl -fsS http://localhost:5173/api/players  # dev frontend
 curl -fsS http://localhost:5174/api/players  # prod overlay instead
 ```
 
-`/health` is a static process response and does not prove SQLite is healthy. A `/stat_types` or `/players` response exercises the database and proxy path. Open frontend and verify existing players/games, boxscore and career; use a **separate disposable database** to test create, log, undo, archive, unarchive and deletion, and inspect resulting values before production. Verify service-worker installation and an offline/reconnect scenario on each supported browser and secure origin; offline limitations are detailed in [architecture](ARCHITECTURE.md#offline-and-pwa). On frontend changes, `cd frontend && npm ci && npm run build` checks buildability; no test or lint scripts are provided. The frontend has a `package-lock.json`, and its Dockerfile also uses `npm ci`.
+`/health` is a static process response and does not prove SQLite is healthy. A `/stat_types` or `/players` response exercises the database and proxy path. Open frontend and verify existing players/games, boxscore and career; use a **separate disposable database** to test create, log, undo, archive, unarchive and deletion, and inspect resulting values before production. Verify service-worker installation and an offline/reconnect scenario on each supported browser and secure origin; offline limitations are detailed in [architecture](ARCHITECTURE.md#offline-and-pwa). On frontend changes, `cd frontend && npm ci && npm run build` checks buildability. The frontend has a `package-lock.json`, and its Dockerfile also uses `npm ci`; no lint script is provided.
+
+Run each block separately from the repository root for the automated frontend queue and backend API tests (use a Python virtual environment):
+
+```sh
+cd frontend && npm test
+```
+
+```sh
+cd backend
+pip install -r requirements-dev.txt
+python -m unittest discover -s tests -v
+```
+
+The backend tests use temporary databases; also manually check recent-entry undo for multiple players, queued undo, and reconnect behavior in a disposable environment.
 
 At review, the frontend build, a backend `/health` smoke test using a temporary database, and `docker compose ... config` succeeded. The supplied database passed a read-only SQLite `PRAGMA integrity_check`. Docker daemon access was unavailable, so container builds and startup were not verified; browser behavior and end-to-end operation also remain unverified. These checks do not establish future integrity or deployment suitability.
 
 ## Database, backups and restore
 
-The supplied `data/hoops.db` may contain valuable real records. Its provenance and contents were not audited. Git is initialized and the database is staged for the initial commit; `.gitignore` explicitly permits it while ignoring other local databases and SQLite journals. Before committing, review its contents and sharing permissions and take a consistent backup. Treat Git distribution of a binary snapshot separately from backup, retention, and access control.
+The supplied `data/hoops.db` may contain valuable real records. Its provenance and contents were not audited. The database is tracked in Git; `.gitignore` explicitly permits it while ignoring other local databases and SQLite journals. Before committing, review its contents and sharing permissions and take a consistent backup. Treat Git distribution of a binary snapshot separately from backup, retention, and access control.
 
 Before maintenance, deployments, schema changes or snapshotting for Git, take a consistent SQLite backup. With `sqlite3` installed on the host, use the SQLite backup API via the CLI against the live source (not a plain copy of a changing database):
 
@@ -61,7 +75,7 @@ To restore, schedule downtime and stop **all** processes writing to the database
 - **Frontend cannot reach API:** check backend logs and `/health`, then query `/stat_types` directly and `/api/stat_types` through the frontend. Confirm the Vite target in local dev and Docker DNS `backend` in Compose. Browser `VITE_API_BASE_URL` overrides the proxy path and cross-origin use is not configured for CORS.
 - **Database open/write errors:** inspect backend logs, `SQLITE_PATH`, bind mount, directory ownership/permissions and disk space. SQLite connections enable foreign keys; direct database edits can violate application assumptions. Avoid deleting/reinitializing the existing file as a first step.
 - **Deletion returns 409:** remove associated stat entries intentionally first; this permanently changes boxscore and career statistics. Archive a game instead when data should be retained.
-- **Queue stuck or records appear duplicated:** browser online status may not reflect API reachability; replay stops on first failure and may not retry until a subsequent online transition or remount. Inspect browser localStorage and server entries before retrying; a response lost after server commit can cause duplicates. Undo does not cancel queued items and may delete an unrelated saved event.
+- **Queue stuck or records appear duplicated:** browser online status may not reflect API reachability; replay stops on first failure and may not retry until a subsequent online transition or remount. Each flush handles its initial queue snapshot; new items wait for a later flush. Inspect browser localStorage and server entries before retrying; a response lost after server commit or a storage failure after submission can cause duplicates, and there is no cross-tab coordination or server idempotency. Undoing a queued item cancels only the local retry and warns that it may already be on the server; reconcile after reconnecting. An in-flight save or queued sync cannot be undone until it finishes. If a saved-entry undo cannot be confirmed, reconnect and reload before retrying.
 - **PWA appears stale or unavailable offline:** check browser service-worker console, secure-origin requirements and previously loaded assets. API responses are not cached; first offline load cannot fetch reference data. Clearing site storage also destroys pending entries; export/reconcile them first.
 - **Port conflict or container name conflict:** inspect `docker compose ps`, other containers and host listeners. Use `docker compose ... config` to inspect the actual merged ports before changing deployment configuration.
 
